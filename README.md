@@ -1,66 +1,65 @@
 # EV Market Intelligence 
 
-[EN] TL;DR: Automated end-to-end data pipeline scraping EV market data from Otomoto. It uses asynchronous Python to gather data, loads it into Google BigQuery data warehouse, and generates automated business reports in Excel via VBA macros.
-
 ![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![Pandas](https://img.shields.io/badge/pandas-%23150458.svg?style=for-the-badge&logo=pandas&logoColor=white)
 ![Google BigQuery](https://img.shields.io/badge/Google_BigQuery-669DF6?style=for-the-badge&logo=googlecloud&logoColor=white)
 ![Excel](https://img.shields.io/badge/Microsoft_Excel-217346?style=for-the-badge&logo=microsoftexcel&logoColor=white)
 ![VBA](https://img.shields.io/badge/VBA-F2C811?style=for-the-badge)
 ![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white)
 
-## Opis projektu
+## Project Overview
 
-Projekt to w pełni zautomatyzowane rozwiązanie analityczne, którego celem jest codzienne monitorowanie rynku samochodów zelektryfikowanych (elektrycznych EV oraz hybrydowych HEV) w Polsce. Narzędzie samodzielnie pozyskuje dane z portalu ogłoszeniowego, przetwarza je, zasila hurtownię danych w chmurze, a następnie serwuje gotowe zestawienia analityczne dla ostatecznego użytkownika biznesowego w postaci zautomatyzowanego arkusza kalkulacyjnego. 
+This project is a fully automated, end-to-end data engineering pipeline designed to monitor the electrified vehicle market (EVs and HEVs) in Poland. The solution autonomously extracts data from a major automotive marketplace, transforms it, loads it into a cloud data warehouse, and delivers ready-to-use business intelligence reports via an automated spreadsheet.
 
-Architektura została zaprojektowana z myślą o niezawodności, optymalizacji zapytań sieciowych oraz łatwości w utrzymaniu, co odzwierciedla rynkowe standardy budowania procesów zasilania danymi.
+The architecture was built with reliability, network optimization, and maintainability in mind, strictly adhering to industry standards for data ingestion and ETL workflows.
 
-## Architektura i przepływ danych
+## Architecture & Data Pipeline
 
-System składa się z trzech głównych modułów, które wykonują się w ściśle określonej sekwencji:
+The system consists of three core modules executing in a strictly defined daily sequence:
 
-1. **Pozyskiwanie i Przetwarzanie (Python)**
-   - Punktem wejścia jest skrypt uruchamiany codziennie w nocy przez zautomatyzowane środowisko GitHub Actions.
-   - Moduł sieciowy oparty na bibliotekach asynchronicznych odpytuje portal w oparciu o plik konfiguracyjny z listą obserwowanych modeli.
-   - Zaimplementowany mechanizm dynamicznej paginacji przechodzi przez kolejne strony wyników, gwarantując pobranie pełnego wolumenu ofert omijając nałożone limity wyświetlania.
-   - Pozyskany kod HTML jest parsowany, a wydobyte metadane są poddawane rygorystycznemu czyszczeniu (m.in. mapowanie typów, weryfikacja statusu wynajmu baterii).
+1. **Extraction & Transformation (Python)**
+   - **Orchestration:** The entry point is a Python script triggered nightly by GitHub Actions.
+   - **Asynchronous Scraping:** Implemented a highly concurrent network module using `asyncio` and `aiohttp`. This non-blocking architecture allows for rapid, concurrent HTTP requests, significantly reducing overall data extraction time compared to synchronous approaches.
+   - **Dynamic Pagination:** A custom pagination mechanism traverses result pages to bypass hardcoded display limits and ensure complete data volume extraction.
+   - **Data Wrangling:** Extracted HTML metadata is rigorously cleaned and transformed using `pandas` and `numpy`. This includes vectorized type casting, string mapping, handling missing values, and validating business logic (e.g., battery ownership status).
 
-2. **Hurtownia Danych (Google BigQuery)**
-   - Wyczyszczone i zwalidowane rekordy trafiają do chmury Google przy użyciu dedykowanego klienta API.
-   - Dane ładowane są z zachowaniem podziału na tabelę faktów (zmienne w czasie parametry takie jak cena, przebieg, data pobrania) oraz tabelę wymiarów (statyczne atrybuty jak moc silnika, marka, model).
-   - Zastosowano logikę weryfikacyjną chroniącą bazę przed duplikacją operacji zapisu w ramach jednego dnia roboczego.
+2. **Data Warehouse (Google BigQuery)**
+   - **Cloud Integration:** Cleaned and validated datasets are pushed to Google Cloud via the native BigQuery Python API.
+   - **Dimensional Modeling:** Data is structured following a Star Schema approach, separated into a Fact Table (time-variant metrics like price, mileage, scrape date) and a Dimension Table (static attributes like make, model, engine power).
+   - **Idempotency & Data Integrity:** Implemented UPSERT logic utilizing SQL `MERGE` statements. This guarantees idempotency, preventing duplicate records and maintaining data integrity during daily batch loads.
 
-3. **Warstwa Raportowa (Excel VBA)**
-   - Końcowym produktem jest interaktywny plik analityczny, który omija potrzebę logowania do zewnętrznych interfejsów chmurowych przez analityka.
-   - Przy otwarciu pliku ukryty skrypt VBA nawiązuje połączenie z Google BigQuery poprzez interfejs ODBC.
-   - Skrypt czyści środowisko robocze, pobiera najświeższy widok danych i w pełni automatycznie przebudowuje tabelę przestawną wraz z nadaniem widocznego stempla czasowego ostatniej aktualizacji.
+3. **Reporting Layer (Excel VBA)**
+   - **Business Interface:** The final deliverable is an interactive analytical file that eliminates the need for business users to log into external cloud consoles.
+   - **Automated Data Retrieval:** Upon opening the file, a hidden VBA script establishes a direct ODBC connection to Google BigQuery.
+   - **Dynamic Rendering:** The script cleans the workspace, fetches the latest materialized view, and automatically rebuilds Pivot Tables, appending a visible timestamp of the most recent update.
 
-## Wartość informacyjna i biznesowa
+## Business Value & Insights
 
-Narzędzie w obecnej formie pozwala na natychmiastową weryfikację stanu rynku wtórnego. Główne metryki dostarczane przez raport to:
-- Precyzyjny wolumen dostępnych pojazdów w rozbiciu na konkretne marki i modele.
-- Średnia cena rynkowa dla poszczególnych modeli bazująca na aktualnych danych z bieżącego dnia.
-- Podstawa do identyfikacji makroekonomicznych trendów podażowych na rynku pojazdów nisko- i bezemisyjnych.
+The tool provides immediate visibility into the secondary automotive market. Key metrics delivered by the automated report include:
+- Precise inventory volumes broken down by specific makes and models.
+- Average market pricing based on the current day's active listings.
+- A foundational dataset for identifying macroeconomic supply-side trends within the low- and zero-emission vehicle sector.
 
-![Raport Biznesowy Excel](images/Raport.png)
-*Rys 1. Podgląd wygenerowanego automatycznie raportu biznesowego w programie Excel.*
+![Business Report Excel](images/Raport.png)
+*Fig 1. Preview of the automatically generated business report in Excel.*
 
-## Struktura Repozytorium
+## Repository Structure
 
-- `.github/workflows/` - definicja zadań CRON odpowiadających za automatyzację całego procesu.
-- `config/` - pliki konfiguracyjne określające zbiory danych wejściowych (manifest modeli aut).
-- `data/` - pliki z danymi testowymi i zrzutami środowiska.
-- `excel/` - pliki raportowe dla użytkowników końcowych.
-- `src/` - główny kod źródłowy aplikacji (logika, komunikacja sieciowa, operacje bazodanowe).
-- `vba_scripts/` - kody źródłowe wdrożone w warstwie raportowej zapisane w postaci czystego tekstu.
-- `main.py` - główny punkt startowy aplikacji wywołujący potok asynchroniczny.
-- `requirements.txt` - lista wymaganych pakietów środowiska Python.
+- `.github/workflows/` - CRON job definitions for CI/CD and pipeline automation.
+- `config/` - Configuration files defining input datasets (target vehicle manifest).
+- `data/` - Environment dumps and sample datasets.
+- `excel/` - End-user reporting files.
+- `src/` - Core application source code (business logic, async network requests, database operations).
+- `vba_scripts/` - Reporting layer source code, extracted as plain text for version control.
+- `main.py` - Application entry point triggering the asynchronous pipeline.
+- `requirements.txt` - Python environment dependencies.
 
-![Struktura BigQuery](images/Schema.png)
-*Rys 2. Struktura zaimplementowanych tabel faktów i wymiarów w hurtowni Google BigQuery.*
+![BigQuery Structure](images/Schema.png)
+*Fig 2. Structure of implemented Fact and Dimension tables in Google BigQuery.*
 
-## Kolejne kroki i rozwój projektu
+## Future Scope
 
-Po zgromadzeniu odpowiedniego wolumenu danych historycznych (zapewniającego odpowiednią próbę statystyczną), projekt zostanie rozbudowany o następujące elementy:
-- **Analiza Cyklu Życia Ogłoszenia:** Badanie czasu potrzebnego na sprzedaż konkretnego modelu i monitorowanie zjawiska obniżania ceny bazowej w czasie.
-- **Wymiary lokalizacyjne:** Rozszerzenie zestawień o dane geograficzne, co pozwoli mapować podaż pojazdów na poszczególne regiony kraju.
-- **Ewolucja warstwy wizualnej:** Wdrożenie interaktywnego dashboardu przy pomocy technologii klasy BI (np. Power BI).
+Once a statistically significant volume of historical data is accumulated, the project will be expanded with the following features:
+- **Listing Lifecycle Analysis:** Tracking the time-to-sale for specific models and monitoring price depreciation trends over time.
+- **Geospatial Dimensions:** Expanding the dataset with geographic coordinates to map vehicle supply across different regions of the country.
+- **BI Migration:** Replacing the Excel reporting layer with a fully interactive dashboard built in a modern Business Intelligence tool (e.g., Power BI or Tableau).
